@@ -73,8 +73,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * An example that computes the most popular hash tags
- * for every prefix, which can be used for auto-completion.
+ * An example that computes product names based on prefixes.
+ * Results can be used for low latency autocomplete
  *
  * <p>Concepts: Using the same pipeline in both streaming and batch, combiners,
  *              composite transforms.
@@ -202,15 +202,46 @@ public class AutoComplete {
 		if(n++ > maxEntries) {
 			break;
 		}
-        Entity.Builder entryEntity = Entity.newBuilder();
-        properties.put("entry", makeValue(entry).build());
-        entries.add(makeValue(entryEntity).build());
+        //Entity.Builder entryEntity = Entity.newBuilder();
+        //properties.put("entry", makeValue(entry).build());
+        entries.add(makeValue(entry).build());
       }
       properties.put("entries", makeValue(entries).build());
       entityBuilder.putAllProperties(properties);
       c.output(entityBuilder.build());
     }
   }
+  
+  /*
+    static class FormatForDatastore extends DoFn<KV<String, List<CompletionCandidate>>, Entity> {
+    private String kind;
+    private String ancestorKey;
+
+    public FormatForDatastore(String kind, String ancestorKey) {
+      this.kind = kind;
+      this.ancestorKey = ancestorKey;
+    }
+
+    @Override
+    public void processElement(ProcessContext c) {
+      Entity.Builder entityBuilder = Entity.newBuilder();
+      Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey()).build();
+
+      entityBuilder.setKey(key);
+      List<Value> candidates = new ArrayList<>();
+      Map<String, Value> properties = new HashMap<>();
+      for (CompletionCandidate tag : c.element().getValue()) {
+        Entity.Builder tagEntity = Entity.newBuilder();
+        properties.put("tag", makeValue(tag.value).build());
+        properties.put("count", makeValue(tag.count).build());
+        candidates.add(makeValue(tagEntity).build());
+      }
+      properties.put("candidates", makeValue(candidates).build());
+      entityBuilder.putAllProperties(properties);
+      c.output(entityBuilder.build());
+    }
+  }
+  */
 
   /**
    * Options supported by this class.
@@ -224,7 +255,7 @@ public class AutoComplete {
     void setInputFile(String value);
 
     @Description("Cloud Datastore entity kind")
-    @Default.String("autocomplete-demo")
+    @Default.String("autocomplete-prefixes")
     String getKind();
     void setKind(String value);
 
@@ -239,7 +270,7 @@ public class AutoComplete {
     void setMaxPrefix(Integer value);
 
     @Description("max entries to be stored per prefix")
-    @Default.Integer(10)
+    @Default.Integer(1024)
     Integer getMaxEntries();
     void setMaxEntries(Integer value);
 
