@@ -42,6 +42,7 @@ import com.google.cloud.dataflow.sdk.options.Validation;
 import com.google.cloud.dataflow.sdk.runners.DataflowPipelineRunner;
 import com.google.cloud.dataflow.sdk.transforms.Count;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
 import com.google.cloud.dataflow.sdk.transforms.Filter;
 import com.google.cloud.dataflow.sdk.transforms.Flatten;
 import com.google.cloud.dataflow.sdk.transforms.PTransform;
@@ -275,11 +276,24 @@ public class AutoComplete {
     }
     @Override
     public void processElement(ProcessContext c) {
+      String line = c.element().value;
+
+      // Split the line into words.
+      String[] words = line.split("[^a-zA-Z']+");
+      for (String word : words) {
+		  for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
+			c.output(KV.of(word.substring(0, i), c.element()));
+		  }
+	  }
+      
+    }
+/*		
       String word = c.element().value;
       for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
         c.output(KV.of(word.substring(0, i), c.element()));
       }
     }
+    */
   }
 
   /**
@@ -351,18 +365,47 @@ public class AutoComplete {
     }
   }
 
-  static class FormatForBigquery extends DoFn<KV<String, List<CompletionCandidate>>, TableRow> {
+  /**
+   * Takes as input a set of strings, and emits a prefix key + full string value
+   */
+  static class ExtractPrefixes 
+      extends DoFn<String, KV<String, String>> {
+	private final int minPrefix;
+	private final int maxPrefix;
+	public ExtractPrefixes(int minPrefix) {
+	  this(minPrefix, Integer.MAX_VALUE);
+	}
+	public ExtractPrefixes(int minPrefix, int maxPrefix) {
+	  this.minPrefix = minPrefix;
+	  this.maxPrefix = maxPrefix;
+	}
+
     @Override
     public void processElement(ProcessContext c) {
-      List<TableRow> completions = new ArrayList<>();
-      for (CompletionCandidate cc : c.element().getValue()) {
-        completions.add(new TableRow()
-            .set("count", cc.getCount())
-            .set("tag", cc.getValue()));
+      String line = c.element();
+
+      // Split the line into words.
+      String[] words = line.split("[^a-zA-Z']+");
+      for (String word : words) {
+		  for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
+			c.output(KV.of(word.substring(0, i), c.element()));
+		  }
+	  }
+    }
+  }
+
+  static class FormatForBigquery extends DoFn<KV<String, Iterable<String>>, TableRow> {
+    @Override
+    public void processElement(ProcessContext c) {
+      List<TableRow> entries = new ArrayList<>();
+
+      for (String entry : c.element().getValue()) {
+        entries.add(new TableRow()
+            .set("entry", entry));
       }
       TableRow row = new TableRow()
           .set("prefix", c.element().getKey())
-          .set("tags", completions);
+          .set("entries", entries);
       c.output(row);
     }
 
@@ -370,6 +413,14 @@ public class AutoComplete {
      * Defines the BigQuery schema used for the output.
      */
     static TableSchema getSchema() {
+      List<TableFieldSchema> fields = new ArrayList<>();
+      fields.add(new TableFieldSchema().setName("prefix").setType("STRING"));
+      List<TableFieldSchema> entries = new ArrayList<>();
+      entries.add(new TableFieldSchema().setName("entry").setType("STRING"));
+      fields.add(new TableFieldSchema()
+          .setName("entries").setType("RECORD").setMode("REPEATED").setFields(entries));
+      return new TableSchema().setFields(fields);
+		/*
       List<TableFieldSchema> tagFields = new ArrayList<>();
       tagFields.add(new TableFieldSchema().setName("count").setType("INTEGER"));
       tagFields.add(new TableFieldSchema().setName("tag").setType("STRING"));
@@ -378,6 +429,7 @@ public class AutoComplete {
       fields.add(new TableFieldSchema()
           .setName("tags").setType("RECORD").setMode("REPEATED").setFields(tagFields));
       return new TableSchema().setFields(fields);
+      */
     }
   }
 
@@ -389,6 +441,34 @@ public class AutoComplete {
    * <a href="https://cloud.google.com/datastore/docs/concepts/structuring_for_strong_consistency">
    * Structuring Data for Strong Consistency</a>
    */
+  static class FormatForDatastore extends DoFn<KV<String, Iterable<String>>, Entity> {
+    private String kind;
+    private String ancestorKey;
+
+    public FormatForDatastore(String kind, String ancestorKey) {
+      this.kind = kind;
+      this.ancestorKey = ancestorKey;
+    }
+
+    @Override
+    public void processElement(ProcessContext c) {
+      Entity.Builder entityBuilder = Entity.newBuilder();
+      Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey()).build();
+
+      entityBuilder.setKey(key);
+      List<Value> entries = new ArrayList<>();
+      Map<String, Value> properties = new HashMap<>();
+      for (String entry : c.element().getValue()) {
+        Entity.Builder entryEntity = Entity.newBuilder();
+        properties.put("entry", makeValue(entry).build());
+        entries.add(makeValue(entryEntity).build());
+      }
+      properties.put("entries", makeValue(entries).build());
+      entityBuilder.putAllProperties(properties);
+      c.output(entityBuilder.build());
+    }
+  }
+/*
   static class FormatForDatastore extends DoFn<KV<String, List<CompletionCandidate>>, Entity> {
     private String kind;
     private String ancestorKey;
@@ -417,7 +497,7 @@ public class AutoComplete {
       c.output(entityBuilder.build());
     }
   }
-
+*/
   /**
    * Options supported by this class.
    *
@@ -489,11 +569,13 @@ public class AutoComplete {
 
     // Create the pipeline.
     Pipeline p = Pipeline.create(options);
-    PCollection<KV<String, List<CompletionCandidate>>> toWrite = p
+    PCollection<KV<String, Iterable<String>>> toWrite = p
         .apply(readSource)
-        .apply(ParDo.of(new ExtractHashtags()))
-        .apply(Window.<String>into(windowFn))
-        .apply(ComputeTopCompletions.top(10, options.getRecursive()));
+        .apply(ParDo.of(new ExtractPrefixes(3,8)))
+        .apply(GroupByKey.<String,String>create());
+//        .apply(ParDo.of(new ExtractHashtags()))
+//        .apply(Window.<String>into(windowFn))
+//        .apply(ComputeTopCompletions.top(10, options.getRecursive()));
 
     if (options.getOutputToDatastore()) {
       toWrite
