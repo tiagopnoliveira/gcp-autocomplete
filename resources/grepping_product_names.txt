@@ -1,0 +1,3 @@
+grep -E "(\"sku\":[0-9]+,\"name\":\")+[^\"]*" -o products.json > tmp.txt
+
+grep -E "name\":\"[^\"]+" -o tmp.txt > prod_names.txt
