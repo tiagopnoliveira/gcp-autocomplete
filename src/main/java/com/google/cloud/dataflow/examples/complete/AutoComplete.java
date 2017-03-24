@@ -29,8 +29,6 @@ import com.google.cloud.dataflow.examples.common.ExampleBigQueryTableOptions;
 import com.google.cloud.dataflow.examples.common.ExamplePubsubTopicOptions;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.PipelineResult;
-import com.google.cloud.dataflow.sdk.coders.AvroCoder;
-import com.google.cloud.dataflow.sdk.coders.DefaultCoder;
 import com.google.cloud.dataflow.sdk.io.BigQueryIO;
 import com.google.cloud.dataflow.sdk.io.PubsubIO;
 import com.google.cloud.dataflow.sdk.io.TextIO;
@@ -106,266 +104,6 @@ import java.util.regex.Pattern;
 public class AutoComplete {
 
   /**
-   * A PTransform that takes as input a list of tokens and returns
-   * the most common tokens per prefix.
-   */
-  public static class ComputeTopCompletions
-      extends PTransform<PCollection<String>, PCollection<KV<String, List<CompletionCandidate>>>> {
-    private final int candidatesPerPrefix;
-    private final boolean recursive;
-
-    protected ComputeTopCompletions(int candidatesPerPrefix, boolean recursive) {
-      this.candidatesPerPrefix = candidatesPerPrefix;
-      this.recursive = recursive;
-    }
-
-    public static ComputeTopCompletions top(int candidatesPerPrefix, boolean recursive) {
-      return new ComputeTopCompletions(candidatesPerPrefix, recursive);
-    }
-
-    @Override
-    public PCollection<KV<String, List<CompletionCandidate>>> apply(PCollection<String> input) {
-      PCollection<CompletionCandidate> candidates = input
-          // First count how often each token appears.
-          .apply(new Count.PerElement<String>())
-
-          // Map the KV outputs of Count into our own CompletionCandiate class.
-          .apply(ParDo.named("CreateCompletionCandidates").of(
-              new DoFn<KV<String, Long>, CompletionCandidate>() {
-                @Override
-                public void processElement(ProcessContext c) {
-                  c.output(new CompletionCandidate(c.element().getKey(), c.element().getValue()));
-                }
-              }));
-
-      // Compute the top via either a flat or recursive algorithm.
-      if (recursive) {
-        return candidates
-            .apply(new ComputeTopRecursive(candidatesPerPrefix, 1))
-            .apply(Flatten.<KV<String, List<CompletionCandidate>>>pCollections());
-      } else {
-        return candidates
-            .apply(new ComputeTopFlat(candidatesPerPrefix, 1));
-      }
-    }
-  }
-
-  /**
-   * Lower latency, but more expensive.
-   */
-  private static class ComputeTopFlat
-      extends PTransform<PCollection<CompletionCandidate>,
-      PCollection<KV<String, List<CompletionCandidate>>>> {
-    private final int candidatesPerPrefix;
-    private final int minPrefix;
-
-    public ComputeTopFlat(int candidatesPerPrefix, int minPrefix) {
-      this.candidatesPerPrefix = candidatesPerPrefix;
-      this.minPrefix = minPrefix;
-    }
-
-    @Override
-    public PCollection<KV<String, List<CompletionCandidate>>> apply(
-        PCollection<CompletionCandidate> input) {
-      return input
-          // For each completion candidate, map it to all prefixes.
-          .apply(ParDo.of(new AllPrefixes(minPrefix)))
-
-          // Find and return the top candiates for each prefix.
-          .apply(Top.<String, CompletionCandidate>largestPerKey(candidatesPerPrefix)
-              .withHotKeyFanout(new HotKeyFanout()));
-    }
-
-    private static class HotKeyFanout implements SerializableFunction<String, Integer> {
-      @Override
-      public Integer apply(String input) {
-        return (int) Math.pow(4, 5 - input.length());
-      }
-    }
-  }
-
-  /**
-   * Cheaper but higher latency.
-   *
-   * <p>Returns two PCollections, the first is top prefixes of size greater
-   * than minPrefix, and the second is top prefixes of size exactly
-   * minPrefix.
-   */
-  private static class ComputeTopRecursive
-      extends PTransform<PCollection<CompletionCandidate>,
-      PCollectionList<KV<String, List<CompletionCandidate>>>> {
-    private final int candidatesPerPrefix;
-    private final int minPrefix;
-
-    public ComputeTopRecursive(int candidatesPerPrefix, int minPrefix) {
-      this.candidatesPerPrefix = candidatesPerPrefix;
-      this.minPrefix = minPrefix;
-    }
-
-    private class KeySizePartitionFn implements PartitionFn<KV<String, List<CompletionCandidate>>> {
-      @Override
-      public int partitionFor(KV<String, List<CompletionCandidate>> elem, int numPartitions) {
-        return elem.getKey().length() > minPrefix ? 0 : 1;
-      }
-    }
-
-    private static class FlattenTops
-        extends DoFn<KV<String, List<CompletionCandidate>>, CompletionCandidate> {
-      @Override
-      public void processElement(ProcessContext c) {
-        for (CompletionCandidate cc : c.element().getValue()) {
-          c.output(cc);
-        }
-      }
-    }
-
-    @Override
-    public PCollectionList<KV<String, List<CompletionCandidate>>> apply(
-        PCollection<CompletionCandidate> input) {
-      if (minPrefix > 10) {
-        // Base case, partitioning to return the output in the expected format.
-        return input
-            .apply(new ComputeTopFlat(candidatesPerPrefix, minPrefix))
-            .apply(Partition.of(2, new KeySizePartitionFn()));
-      } else {
-        // If a candidate is in the top N for prefix a...b, it must also be in the top
-        // N for a...bX for every X, which is typlically a much smaller set to consider.
-        // First, compute the top candidate for prefixes of size at least minPrefix + 1.
-        PCollectionList<KV<String, List<CompletionCandidate>>> larger = input
-            .apply(new ComputeTopRecursive(candidatesPerPrefix, minPrefix + 1));
-        // Consider the top candidates for each prefix of length minPrefix + 1...
-        PCollection<KV<String, List<CompletionCandidate>>> small =
-            PCollectionList
-                .of(larger.get(1).apply(ParDo.of(new FlattenTops())))
-                // ...together with those (previously excluded) candidates of length
-                // exactly minPrefix...
-                .and(input.apply(Filter.byPredicate(
-                    new SerializableFunction<CompletionCandidate, Boolean>() {
-                      @Override
-                      public Boolean apply(CompletionCandidate c) {
-                        return c.getValue().length() == minPrefix;
-                      }
-                    })))
-                .apply("FlattenSmall", Flatten.<CompletionCandidate>pCollections())
-                // ...set the key to be the minPrefix-length prefix...
-                .apply(ParDo.of(new AllPrefixes(minPrefix, minPrefix)))
-                // ...and (re)apply the Top operator to all of them together.
-                .apply(Top.<String, CompletionCandidate>largestPerKey(candidatesPerPrefix));
-
-        PCollection<KV<String, List<CompletionCandidate>>> flattenLarger = larger
-            .apply("FlattenLarge", Flatten.<KV<String, List<CompletionCandidate>>>pCollections());
-
-        return PCollectionList.of(flattenLarger).and(small);
-      }
-    }
-  }
-
-  /**
-   * A DoFn that keys each candidate by all its prefixes.
-   */
-  private static class AllPrefixes
-      extends DoFn<CompletionCandidate, KV<String, CompletionCandidate>> {
-    private final int minPrefix;
-    private final int maxPrefix;
-    public AllPrefixes(int minPrefix) {
-      this(minPrefix, Integer.MAX_VALUE);
-    }
-    public AllPrefixes(int minPrefix, int maxPrefix) {
-      this.minPrefix = minPrefix;
-      this.maxPrefix = maxPrefix;
-    }
-    @Override
-    public void processElement(ProcessContext c) {
-      String line = c.element().value;
-
-      // Split the line into words.
-      String[] words = line.split("[^a-zA-Z']+");
-      for (String word : words) {
-		  for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
-			c.output(KV.of(word.substring(0, i), c.element()));
-		  }
-	  }
-      
-    }
-/*		
-      String word = c.element().value;
-      for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
-        c.output(KV.of(word.substring(0, i), c.element()));
-      }
-    }
-    */
-  }
-
-  /**
-   * Class used to store tag-count pairs.
-   */
-  @DefaultCoder(AvroCoder.class)
-  static class CompletionCandidate implements Comparable<CompletionCandidate> {
-    private long count;
-    private String value;
-
-    public CompletionCandidate(String value, long count) {
-      this.value = value;
-      this.count = count;
-    }
-
-    public long getCount() {
-      return count;
-    }
-
-    public String getValue() {
-      return value;
-    }
-
-    // Empty constructor required for Avro decoding.
-    public CompletionCandidate() {}
-
-    @Override
-    public int compareTo(CompletionCandidate o) {
-      if (this.count < o.count) {
-        return -1;
-      } else if (this.count == o.count) {
-        return this.value.compareTo(o.value);
-      } else {
-        return 1;
-      }
-    }
-
-    @Override
-    public boolean equals(Object other) {
-      if (other instanceof CompletionCandidate) {
-        CompletionCandidate that = (CompletionCandidate) other;
-        return this.count == that.count && this.value.equals(that.value);
-      } else {
-        return false;
-      }
-    }
-
-    @Override
-    public int hashCode() {
-      return Long.valueOf(count).hashCode() ^ value.hashCode();
-    }
-
-    @Override
-    public String toString() {
-      return "CompletionCandidate[" + value + ", " + count + "]";
-    }
-  }
-
-  /**
-   * Takes as input a set of strings, and emits each #hashtag found therein.
-   */
-  static class ExtractHashtags extends DoFn<String, String> {
-    @Override
-    public void processElement(ProcessContext c) {
-      Matcher m = Pattern.compile("#\\S+").matcher(c.element());
-      while (m.find()) {
-        c.output(m.group().substring(1));
-      }
-    }
-  }
-
-  /**
    * Takes as input a set of strings, and emits a prefix key + full string value
    */
   static class ExtractPrefixes 
@@ -395,11 +133,20 @@ public class AutoComplete {
   }
 
   static class FormatForBigquery extends DoFn<KV<String, Iterable<String>>, TableRow> {
+	private final int maxEntries;
+	public FormatForBigquery(int maxEntries) {
+	  this.maxEntries = maxEntries;
+	}
+	
     @Override
     public void processElement(ProcessContext c) {
       List<TableRow> entries = new ArrayList<>();
-
+      
+      int n = 0;
       for (String entry : c.element().getValue()) {
+		if(n++ > maxEntries) {
+			break;
+		}
         entries.add(new TableRow()
             .set("entry", entry));
       }
@@ -420,16 +167,6 @@ public class AutoComplete {
       fields.add(new TableFieldSchema()
           .setName("entries").setType("RECORD").setMode("REPEATED").setFields(entries));
       return new TableSchema().setFields(fields);
-		/*
-      List<TableFieldSchema> tagFields = new ArrayList<>();
-      tagFields.add(new TableFieldSchema().setName("count").setType("INTEGER"));
-      tagFields.add(new TableFieldSchema().setName("tag").setType("STRING"));
-      List<TableFieldSchema> fields = new ArrayList<>();
-      fields.add(new TableFieldSchema().setName("prefix").setType("STRING"));
-      fields.add(new TableFieldSchema()
-          .setName("tags").setType("RECORD").setMode("REPEATED").setFields(tagFields));
-      return new TableSchema().setFields(fields);
-      */
     }
   }
 
@@ -444,10 +181,12 @@ public class AutoComplete {
   static class FormatForDatastore extends DoFn<KV<String, Iterable<String>>, Entity> {
     private String kind;
     private String ancestorKey;
+	private final int maxEntries;
 
-    public FormatForDatastore(String kind, String ancestorKey) {
+    public FormatForDatastore(String kind, String ancestorKey, int maxEntries) {
       this.kind = kind;
       this.ancestorKey = ancestorKey;
+	  this.maxEntries = maxEntries;
     }
 
     @Override
@@ -458,7 +197,11 @@ public class AutoComplete {
       entityBuilder.setKey(key);
       List<Value> entries = new ArrayList<>();
       Map<String, Value> properties = new HashMap<>();
+      int n = 0;
       for (String entry : c.element().getValue()) {
+		if(n++ > maxEntries) {
+			break;
+		}
         Entity.Builder entryEntity = Entity.newBuilder();
         properties.put("entry", makeValue(entry).build());
         entries.add(makeValue(entryEntity).build());
@@ -468,36 +211,7 @@ public class AutoComplete {
       c.output(entityBuilder.build());
     }
   }
-/*
-  static class FormatForDatastore extends DoFn<KV<String, List<CompletionCandidate>>, Entity> {
-    private String kind;
-    private String ancestorKey;
 
-    public FormatForDatastore(String kind, String ancestorKey) {
-      this.kind = kind;
-      this.ancestorKey = ancestorKey;
-    }
-
-    @Override
-    public void processElement(ProcessContext c) {
-      Entity.Builder entityBuilder = Entity.newBuilder();
-      Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey()).build();
-
-      entityBuilder.setKey(key);
-      List<Value> candidates = new ArrayList<>();
-      Map<String, Value> properties = new HashMap<>();
-      for (CompletionCandidate tag : c.element().getValue()) {
-        Entity.Builder tagEntity = Entity.newBuilder();
-        properties.put("tag", makeValue(tag.value).build());
-        properties.put("count", makeValue(tag.count).build());
-        candidates.add(makeValue(tagEntity).build());
-      }
-      properties.put("candidates", makeValue(candidates).build());
-      entityBuilder.putAllProperties(properties);
-      c.output(entityBuilder.build());
-    }
-  }
-*/
   /**
    * Options supported by this class.
    *
@@ -509,15 +223,25 @@ public class AutoComplete {
     String getInputFile();
     void setInputFile(String value);
 
-    @Description("Whether to use the recursive algorithm")
-    @Default.Boolean(true)
-    Boolean getRecursive();
-    void setRecursive(Boolean value);
-
     @Description("Cloud Datastore entity kind")
     @Default.String("autocomplete-demo")
     String getKind();
     void setKind(String value);
+
+    @Description("min size of prefix to be stored")
+    @Default.Integer(3)
+    Integer getMinPrefix();
+    void setMinPrefix(Integer value);
+
+    @Description("max size of prefix to be stored")
+    @Default.Integer(10)
+    Integer getMaxPrefix();
+    void setMaxPrefix(Integer value);
+
+    @Description("max entries to be stored per prefix")
+    @Default.Integer(10)
+    Integer getMaxEntries();
+    void setMaxEntries(Integer value);
 
     @Description("Whether output to BigQuery")
     @Default.Boolean(true)
@@ -571,16 +295,13 @@ public class AutoComplete {
     Pipeline p = Pipeline.create(options);
     PCollection<KV<String, Iterable<String>>> toWrite = p
         .apply(readSource)
-        .apply(ParDo.of(new ExtractPrefixes(3,8)))
+        .apply(ParDo.of(new ExtractPrefixes(options.getMinPrefix(),options.getMaxPrefix())))
         .apply(GroupByKey.<String,String>create());
-//        .apply(ParDo.of(new ExtractHashtags()))
-//        .apply(Window.<String>into(windowFn))
-//        .apply(ComputeTopCompletions.top(10, options.getRecursive()));
 
     if (options.getOutputToDatastore()) {
       toWrite
           .apply(ParDo.named("FormatForDatastore").of(new FormatForDatastore(options.getKind(),
-              options.getDatastoreAncestorKey())))
+              options.getDatastoreAncestorKey(), options.getMaxEntries())))
           .apply(DatastoreIO.v1().write().withProjectId(MoreObjects.firstNonNull(
               options.getOutputDataset(), options.getProject())));
     }
@@ -593,7 +314,7 @@ public class AutoComplete {
       tableRef.setTableId(options.getBigQueryTable());
 
       toWrite
-        .apply(ParDo.of(new FormatForBigquery()))
+        .apply(ParDo.of(new FormatForBigquery(options.getMaxEntries())))
         .apply(BigQueryIO.Write
                .to(tableRef)
                .withSchema(FormatForBigquery.getSchema())
