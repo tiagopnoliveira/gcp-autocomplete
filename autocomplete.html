@@ -1,5 +1,21 @@
 <HTML>
 <head>
+<style> 
+input[type=text] {
+	width: 100%;
+	padding: 12px 20px;
+	margin: auto;
+	vertical-align: middle;
+	box-sizing: border-box;
+}
+
+.center {
+    margin: auto;
+    width: 40%;
+    border: 0px solid #73AD21;
+    padding: 160px;
+}
+</style>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"/></script>
 <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
 <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
@@ -42,9 +58,8 @@ $(document).ready(function() {
 </script>
 </head>
 <body>
-<form id="searchform" method="get" role="search">
-    <input id="searchfield" />
-    <input type="submit" name="go" value="go!" />
-</form>
+	<div class="center">
+		<input id="searchfield" type="text"/>
+	</div>
 </body>
 </HTML>

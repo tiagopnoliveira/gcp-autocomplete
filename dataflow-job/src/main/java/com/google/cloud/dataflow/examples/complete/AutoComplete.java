@@ -121,7 +121,7 @@ public class AutoComplete {
       String line = c.element();
 
       // Split the line into words.
-      String[] words = line.split("[^a-zA-Z']+");
+      String[] words = line.split("[^0-9a-zA-Z']+");
       for (String word : words) {
 		  for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
 			c.output(KV.of(c.element(), word.substring(0, i).toLowerCase()));
@@ -207,7 +207,7 @@ public class AutoComplete {
     void setKind(String value);
 
     @Description("min size of prefix to be stored")
-    @Default.Integer(3)
+    @Default.Integer(1)
     Integer getMinPrefix();
     void setMinPrefix(Integer value);
 

@@ -31,7 +31,8 @@ import org.apache.commons.lang3.StringEscapeUtils;
 @SuppressWarnings("serial")
 public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 	private final DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
-	private final int minimumPrefixSize = 3;
+	private final int minimumPrefixSize = 1;
+	private final int maximumPrefixSize = 10;
 	private final int maxResults = 12;
 	private final String datastoreKindName = "AutoCompletePrefixes";
 	private final String datastoreProductEntryName = "entry";
@@ -51,6 +52,9 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 	ArrayList<String> inputPrefixes = new ArrayList<String>();
 	for(String s : queryElements) {
 		if(s.length() >= minimumPrefixSize) {
+			if(s.length() > maximumPrefixSize) {
+				s = s.substring(0,maximumPrefixSize);
+			}
 			inputPrefixes.add(s.toLowerCase());
 		}
 	}
