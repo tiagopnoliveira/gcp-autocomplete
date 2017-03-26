@@ -20,12 +20,22 @@ Copyright 2015 Google Inc.
   <version>1.0-SNAPSHOT</version>
   <groupId>com.example.appengine</groupId>
   <artifactId>appengine-helloworld</artifactId>
-  <parent>
-    <groupId>com.google.cloud</groupId>
-    <artifactId>appengine-doc-samples</artifactId>
-    <version>1.0.0</version>
-    <relativePath>..</relativePath>
-  </parent>
+
+    <properties>
+        <appengine.sdk.version>1.9.50</appengine.sdk.version>
+        <appengine.app.version>1</appengine.app.version>
+
+        <project.http.version>1.19.0</project.http.version>
+        <project.oauth.version>1.19.0</project.oauth.version>
+
+        <maven.compiler.target>1.7</maven.compiler.target>
+        <maven.compiler.source>1.7</maven.compiler.source>
+    </properties>
+
+    <prerequisites>
+        <maven>3.3.9</maven>
+    </prerequisites>
+
   <dependencies>
     <dependency>
       <groupId>javax.servlet</groupId>
@@ -33,6 +43,8 @@ Copyright 2015 Google Inc.
       <version>2.5</version>
       <scope>provided</scope>
     </dependency>
+
+
 
 	<!-- https://mvnrepository.com/artifact/com.google.cloud/google-cloud-datastore -->
 	<dependency>
@@ -62,7 +74,6 @@ Copyright 2015 Google Inc.
           <target>1.7</target>
         </configuration>
       </plugin>
-      <!-- Parent POM defines ${appengine.sdk.version} (updates frequently). -->
       <plugin>
         <groupId>com.google.appengine</groupId>
         <artifactId>appengine-maven-plugin</artifactId>
