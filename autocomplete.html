@@ -1,0 +1,50 @@
+<HTML>
+<head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"/></script>
+<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+<script>
+/* Cheat function
+$(document).ready(function() {
+	var tags = ["Aa","Bb","Cc"];
+
+	$( "#searchfield" ).autocomplete({
+	delay: 0,
+	source: tags
+	});
+});
+*/
+// Normal function
+$(document).ready(function() {
+	$( "#searchfield" ).autocomplete({
+	delay: 0,
+	source: function( request, response ) {
+		$.ajax({
+			url: "https://positive-design-162500.appspot.com/product",
+			dataType: "jsonp",
+			jsonpCallback: 'jsonCallback',
+			data: {q: request.term},
+			//data: request,
+			success: function(data) {
+				response($.map(data, function(item) {
+					return {
+						label: item,
+						value: item
+					};
+				}));
+			}
+		});
+	},
+	minlength:0
+	});
+});
+
+</script>
+</head>
+<body>
+<form id="searchform" method="get" role="search">
+    <input id="searchfield" />
+    <input type="submit" name="go" value="go!" />
+</form>
+</body>
+</HTML>

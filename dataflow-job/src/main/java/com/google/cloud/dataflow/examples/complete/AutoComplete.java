@@ -127,8 +127,9 @@ public class AutoComplete {
       String[] words = line.split("[^a-zA-Z']+");
       for (String word : words) {
 		  for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
-			c.output(KV.of(word.substring(0, i), c.element()));
-		  }
+//			c.output(KV.of(word.substring(0, i), c.element()));
+			c.output(KV.of(c.element(), word.substring(0, i).toLowerCase()));
+		}
 	  }
     }
   }
@@ -141,19 +142,15 @@ public class AutoComplete {
 	
     @Override
     public void processElement(ProcessContext c) {
-      List<TableRow> entries = new ArrayList<>();
+      List<TableRow> prefixes = new ArrayList<>();
       
-      int n = 0;
-      for (String entry : c.element().getValue()) {
-		if(n++ > maxEntries) {
-			break;
-		}
-        entries.add(new TableRow()
-            .set("entry", entry));
+      for (String prefix : c.element().getValue()) {
+        prefixes.add(new TableRow()
+            .set("prefix", prefix));
       }
       TableRow row = new TableRow()
-          .set("prefix", c.element().getKey())
-          .set("entries", entries);
+          .set("entry", c.element().getKey())
+          .set("prefixes", prefixes);
       c.output(row);
     }
 
@@ -162,11 +159,11 @@ public class AutoComplete {
      */
     static TableSchema getSchema() {
       List<TableFieldSchema> fields = new ArrayList<>();
-      fields.add(new TableFieldSchema().setName("prefix").setType("STRING"));
-      List<TableFieldSchema> entries = new ArrayList<>();
-      entries.add(new TableFieldSchema().setName("entry").setType("STRING"));
+      fields.add(new TableFieldSchema().setName("entry").setType("STRING"));
+      List<TableFieldSchema> prefixes = new ArrayList<>();
+      prefixes.add(new TableFieldSchema().setName("prefix").setType("STRING"));
       fields.add(new TableFieldSchema()
-          .setName("entries").setType("RECORD").setMode("REPEATED").setFields(entries));
+          .setName("prefixes").setType("RECORD").setMode("REPEATED").setFields(prefixes));
       return new TableSchema().setFields(fields);
     }
   }
@@ -194,7 +191,7 @@ public class AutoComplete {
     public void processElement(ProcessContext c) {
 		int n = 1;
 		int counter = 0;
-		Iterator<String> entryIterator = c.element().getValue().iterator();
+		Iterator<String> prefixIterator = c.element().getValue().iterator();
 		boolean anotherLoop = true;
 		while(anotherLoop) {
 		  anotherLoop = false;
@@ -202,12 +199,12 @@ public class AutoComplete {
 		  Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey() + n).build();
 
 		  entityBuilder.setKey(key);
-		  List<Value> entries = new ArrayList<>();
+		  List<Value> prefixes = new ArrayList<>();
 		  Map<String, Value> properties = new HashMap<>();
-		  while(entryIterator.hasNext()) {
-				String entry = entryIterator.next();
-				entries.add(makeValue(entry).excludeFromIndexes(true).build());
-				if(counter > maxEntries && entryIterator.hasNext()) {
+		  while(prefixIterator.hasNext()) {
+				String prefix = prefixIterator.next();
+				prefixes.add(makeValue(prefix).build());
+				if(counter > maxEntries && prefixIterator.hasNext()) {
 					anotherLoop = true;
 					counter = 0;
 					n++;
@@ -215,8 +212,8 @@ public class AutoComplete {
 				}
 				counter++;
 		  }
-		  properties.put("prefix", makeValue(c.element().getKey()).build());
-		  properties.put("entries", makeValue(entries).excludeFromIndexes(true).build());
+		  properties.put("entry", makeValue(c.element().getKey()).build());
+		  properties.put("prefixes", makeValue(prefixes).build());
 		  entityBuilder.putAllProperties(properties);
 		  c.output(entityBuilder.build());
 		}
@@ -308,8 +305,8 @@ public class AutoComplete {
     Integer getMaxPrefix();
     void setMaxPrefix(Integer value);
 
-    @Description("max entries to be stored per prefix")
-    @Default.Integer(512)
+    @Description("max prefixes to be stored per entry")
+    @Default.Integer(1024)
     Integer getMaxEntries();
     void setMaxEntries(Integer value);
 

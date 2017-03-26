@@ -4,11 +4,11 @@
   xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
   version="2.5">
   <servlet>
-    <servlet-name>hello</servlet-name>
-    <servlet-class>com.example.appengine.helloworld.HelloServlet</servlet-class>
+    <servlet-name>ProductNameAutocompleteJSONServlet</servlet-name>
+    <servlet-class>com.example.appengine.autocomplete.ProductNameAutocompleteJSONServlet</servlet-class>
   </servlet>
   <servlet-mapping>
-    <servlet-name>hello</servlet-name>
-    <url-pattern>/query</url-pattern>
+    <servlet-name>ProductNameAutocompleteJSONServlet</servlet-name>
+    <url-pattern>/product</url-pattern>
   </servlet-mapping>
 </web-app>
