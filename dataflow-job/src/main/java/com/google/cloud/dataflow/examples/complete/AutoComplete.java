@@ -170,7 +170,6 @@ public class AutoComplete {
     public FormatForDatastore(String kind, String ancestorKey) {
       this.kind = kind;
       this.ancestorKey = ancestorKey;
-	  this.maxEntries = maxEntries;
     }
 
     @Override
@@ -203,7 +202,7 @@ public class AutoComplete {
     void setInputFile(String value);
 
     @Description("Cloud Datastore entity kind")
-    @Default.String("AutocompletePrefixes")
+    @Default.String("AutoCompletePrefixes")
     String getKind();
     void setKind(String value);
 

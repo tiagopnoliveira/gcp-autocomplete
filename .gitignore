@@ -3,3 +3,5 @@
 
 dataflow-job/target
 json-servlet/target
+
+gcp-autocomplete-commands.txt

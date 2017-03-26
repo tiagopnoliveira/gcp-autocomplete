@@ -32,7 +32,10 @@ import org.apache.commons.lang3.StringEscapeUtils;
 public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 	private final DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
 	private final int minimumPrefixSize = 3;
-	private final int maxResults = 6;
+	private final int maxResults = 12;
+	private final String datastoreKindName = "AutoCompletePrefixes";
+	private final String datastoreProductEntryName = "entry";
+	private final String datastorePrefixesEntryName = "prefixes";
 	private final String jsonCallbackFunctionName = "jsonCallback";
 
   @Override
@@ -86,14 +89,14 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
     if(inputPrefixes.size() > 1) {
 		ArrayList<Filter> subFilters = new ArrayList<Filter>();
 		for(String prefix : inputPrefixes) {
-			subFilters.add(new FilterPredicate("prefixes", FilterOperator.EQUAL, prefix));
+			subFilters.add(new FilterPredicate(datastorePrefixesEntryName, FilterOperator.EQUAL, prefix));
 		}
 		filter = new CompositeFilter(CompositeFilterOperator.AND, subFilters);
 	} else {
-		filter = new FilterPredicate("prefixes", FilterOperator.EQUAL, inputPrefixes.get(0));
+		filter = new FilterPredicate(datastorePrefixesEntryName, FilterOperator.EQUAL, inputPrefixes.get(0));
 	}
 	
-	Query query = new Query("AutocompletePrefixes").setFilter(filter);
+	Query query = new Query(datastoreKindName).setFilter(filter);
 //	query.addProjection(new PropertyProjection("entry", String.class));
 
 //	List<Entity> entities = datastore.prepare(query).asList(FetchOptions.Builder.withDefaults());
@@ -102,7 +105,7 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 
 	ArrayList<String> results = new ArrayList<String>();
 	for(Entity entity : entities) {
-		String entry = (String) entity.getProperty("entry");
+		String entry = (String) entity.getProperty(datastoreProductEntryName);
 		results.add(entry);
 	}
 	
