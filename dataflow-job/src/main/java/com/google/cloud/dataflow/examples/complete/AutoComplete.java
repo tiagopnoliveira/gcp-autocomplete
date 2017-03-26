@@ -74,11 +74,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * An example that computes product names based on prefixes.
+ * A dataflow job to compute prefixes based on product names.
  * Results can be used for low latency autocomplete
- *
- * <p>Concepts: Using the same pipeline in both streaming and batch, combiners,
- *              composite transforms.
  *
  * <p>To execute this pipeline using the Dataflow service in batch mode,
  * specify pipeline configuration:
@@ -105,7 +102,7 @@ import java.util.regex.Pattern;
 public class AutoComplete {
 
   /**
-   * Takes as input a set of strings, and emits a prefix key + full string value
+   * Takes as input a set of strings, and emits a product name key + all prefixes for each word
    */
   static class ExtractPrefixes 
       extends DoFn<String, KV<String, String>> {
@@ -127,7 +124,6 @@ public class AutoComplete {
       String[] words = line.split("[^a-zA-Z']+");
       for (String word : words) {
 		  for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
-//			c.output(KV.of(word.substring(0, i), c.element()));
 			c.output(KV.of(c.element(), word.substring(0, i).toLowerCase()));
 		}
 	  }
@@ -135,11 +131,6 @@ public class AutoComplete {
   }
 
   static class FormatForBigquery extends DoFn<KV<String, Iterable<String>>, TableRow> {
-	private final int maxEntries;
-	public FormatForBigquery(int maxEntries) {
-	  this.maxEntries = maxEntries;
-	}
-	
     @Override
     public void processElement(ProcessContext c) {
       List<TableRow> prefixes = new ArrayList<>();
@@ -169,19 +160,14 @@ public class AutoComplete {
   }
 
   /**
-   * Takes as input a the top candidates per prefix, and emits an entity
-   * suitable for writing to Cloud Datastore.
-   *
-   * <p>Note: We use ancestor keys for strong consistency. See the Cloud Datastore documentation on
-   * <a href="https://cloud.google.com/datastore/docs/concepts/structuring_for_strong_consistency">
-   * Structuring Data for Strong Consistency</a>
+   * Takes as input a KV with product names + prefixes and emits datastore builders
+   * suitable for writing to Cloud Datastore. Mi
    */
   static class FormatForDatastore extends DoFn<KV<String, Iterable<String>>, Entity> {
     private String kind;
     private String ancestorKey;
-	private final int maxEntries;
 
-    public FormatForDatastore(String kind, String ancestorKey, int maxEntries) {
+    public FormatForDatastore(String kind, String ancestorKey) {
       this.kind = kind;
       this.ancestorKey = ancestorKey;
 	  this.maxEntries = maxEntries;
@@ -189,95 +175,21 @@ public class AutoComplete {
 
     @Override
     public void processElement(ProcessContext c) {
-		int n = 1;
-		int counter = 0;
-		Iterator<String> prefixIterator = c.element().getValue().iterator();
-		boolean anotherLoop = true;
-		while(anotherLoop) {
-		  anotherLoop = false;
-		  Entity.Builder entityBuilder = Entity.newBuilder();
-		  Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey() + n).build();
+	  Entity.Builder entityBuilder = Entity.newBuilder();
+	  Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey()).build();
 
-		  entityBuilder.setKey(key);
-		  List<Value> prefixes = new ArrayList<>();
-		  Map<String, Value> properties = new HashMap<>();
-		  while(prefixIterator.hasNext()) {
-				String prefix = prefixIterator.next();
-				prefixes.add(makeValue(prefix).build());
-				if(counter > maxEntries && prefixIterator.hasNext()) {
-					anotherLoop = true;
-					counter = 0;
-					n++;
-					break;
-				}
-				counter++;
-		  }
-		  properties.put("entry", makeValue(c.element().getKey()).build());
-		  properties.put("prefixes", makeValue(prefixes).build());
-		  entityBuilder.putAllProperties(properties);
-		  c.output(entityBuilder.build());
-		}
-    }
+	  entityBuilder.setKey(key);
+	  List<Value> prefixes = new ArrayList<>();
+	  for(String prefix : c.element().getValue()) {
+			prefixes.add(makeValue(prefix).build());
+	  }
+	  Map<String, Value> properties = new HashMap<>();
+	  properties.put("entry", makeValue(c.element().getKey()).build());
+	  properties.put("prefixes", makeValue(prefixes).build());
+	  entityBuilder.putAllProperties(properties);
+	  c.output(entityBuilder.build());
+	}
   }
-
-
-/*
- * 
- *     public void processElement(ProcessContext c) {
-      Entity.Builder entityBuilder = Entity.newBuilder();
-      Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey()).build();
-
-      entityBuilder.setKey(key);
-      List<Value> entries = new ArrayList<>();
-      Map<String, Value> properties = new HashMap<>();
-      int n = 0;
-      for (String entry : c.element().getValue()) {
-		if(n++ > maxEntries) {
-			break;
-		}
-        //Entity.Builder entryEntity = Entity.newBuilder();
-        //properties.put("entry", makeValue(entry).build());
-        entries.add(makeValue(entry).build());
-      }
-      properties.put("prefix", makeValue(c.element().getKey()).build());
-      properties.put("entries", makeValue(entries).build());
-      entityBuilder.putAllProperties(properties);
-      c.output(entityBuilder.build());
-    }
-
- * 
- */
-  
-  /*
-    static class FormatForDatastore extends DoFn<KV<String, List<CompletionCandidate>>, Entity> {
-    private String kind;
-    private String ancestorKey;
-
-    public FormatForDatastore(String kind, String ancestorKey) {
-      this.kind = kind;
-      this.ancestorKey = ancestorKey;
-    }
-
-    @Override
-    public void processElement(ProcessContext c) {
-      Entity.Builder entityBuilder = Entity.newBuilder();
-      Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey()).build();
-
-      entityBuilder.setKey(key);
-      List<Value> candidates = new ArrayList<>();
-      Map<String, Value> properties = new HashMap<>();
-      for (CompletionCandidate tag : c.element().getValue()) {
-        Entity.Builder tagEntity = Entity.newBuilder();
-        properties.put("tag", makeValue(tag.value).build());
-        properties.put("count", makeValue(tag.count).build());
-        candidates.add(makeValue(tagEntity).build());
-      }
-      properties.put("candidates", makeValue(candidates).build());
-      entityBuilder.putAllProperties(properties);
-      c.output(entityBuilder.build());
-    }
-  }
-  */
 
   /**
    * Options supported by this class.
@@ -304,11 +216,6 @@ public class AutoComplete {
     @Default.Integer(10)
     Integer getMaxPrefix();
     void setMaxPrefix(Integer value);
-
-    @Description("max prefixes to be stored per entry")
-    @Default.Integer(1024)
-    Integer getMaxEntries();
-    void setMaxEntries(Integer value);
 
     @Description("Whether output to BigQuery")
     @Default.Boolean(true)
@@ -368,7 +275,7 @@ public class AutoComplete {
     if (options.getOutputToDatastore()) {
       toWrite
           .apply(ParDo.named("FormatForDatastore").of(new FormatForDatastore(options.getKind(),
-              options.getDatastoreAncestorKey(), options.getMaxEntries())))
+              options.getDatastoreAncestorKey())))
           .apply(DatastoreIO.v1().write().withProjectId(MoreObjects.firstNonNull(
               options.getOutputDataset(), options.getProject())));
     }
@@ -381,7 +288,7 @@ public class AutoComplete {
       tableRef.setTableId(options.getBigQueryTable());
 
       toWrite
-        .apply(ParDo.of(new FormatForBigquery(options.getMaxEntries())))
+        .apply(ParDo.of(new FormatForBigquery()))
         .apply(BigQueryIO.Write
                .to(tableRef)
                .withSchema(FormatForBigquery.getSchema())

@@ -28,7 +28,6 @@ import com.google.appengine.api.datastore.*;
 import com.google.appengine.api.datastore.Query.*;
 import org.apache.commons.lang3.StringEscapeUtils;
 
-// [START example]
 @SuppressWarnings("serial")
 public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 	private final DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
@@ -123,4 +122,3 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 	}
   }
 }
-// [END example]
