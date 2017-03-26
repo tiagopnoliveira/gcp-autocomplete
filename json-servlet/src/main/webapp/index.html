@@ -1,5 +1,6 @@
 <HTML>
 <head>
+<title>AutoComplete Example</title>
 <style> 
 input[type=text] {
 	width: 100%;
@@ -20,27 +21,15 @@ input[type=text] {
 <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
 <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
 <script>
-/* Cheat function
-$(document).ready(function() {
-	var tags = ["Aa","Bb","Cc"];
-
-	$( "#searchfield" ).autocomplete({
-	delay: 0,
-	source: tags
-	});
-});
-*/
-// Normal function
 $(document).ready(function() {
 	$( "#searchfield" ).autocomplete({
 	delay: 0,
 	source: function( request, response ) {
 		$.ajax({
-			url: "https://positive-design-162500.appspot.com/product",
+			url: "./product",
 			dataType: "jsonp",
 			jsonpCallback: 'jsonCallback',
 			data: {q: request.term},
-			//data: request,
 			success: function(data) {
 				response($.map(data, function(item) {
 					return {

@@ -3,12 +3,12 @@
   xmlns:web="http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
   xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
   version="2.5">
-  <servlet>
-    <servlet-name>ProductNameAutocompleteJSONServlet</servlet-name>
-    <servlet-class>com.example.appengine.autocomplete.ProductNameAutocompleteJSONServlet</servlet-class>
-  </servlet>
-  <servlet-mapping>
-    <servlet-name>ProductNameAutocompleteJSONServlet</servlet-name>
-    <url-pattern>/product</url-pattern>
-  </servlet-mapping>
+	<servlet>
+		<servlet-name>ProductNameAutocompleteJSONServlet</servlet-name>
+		<servlet-class>com.example.appengine.autocomplete.ProductNameAutocompleteJSONServlet</servlet-class>
+	</servlet>
+	<servlet-mapping>
+		<servlet-name>ProductNameAutocompleteJSONServlet</servlet-name>
+		<url-pattern>/product</url-pattern>
+	</servlet-mapping>
 </web-app>
