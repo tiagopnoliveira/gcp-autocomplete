@@ -75,12 +75,13 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 	// try to read from cache
     MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
     memCache.setErrorHandler(ErrorHandlers.getConsistentLogAndContinue(Level.INFO));
-    byte[] cacheValue = (byte[]) memCache.get(keyBuilder.toString().trim());
+    byte[] key = keyBuilder.toString().trim().getBytes();
+    byte[] cacheValue = (byte[]) memCache.get(key);
     
 	if(cacheValue == null) {
 		ArrayList<String> suggestions = generateListAutoCompleteSuggestions(inputPrefixes);
 		jsonP = outputJSONPFromSuggestions(suggestions);
-		memCache.put(keyBuilder.toString().trim(), jsonP.getBytes());
+		memCache.put(key, jsonP.getBytes());
 	} else {
 		jsonP = new String(cacheValue);
 	}
