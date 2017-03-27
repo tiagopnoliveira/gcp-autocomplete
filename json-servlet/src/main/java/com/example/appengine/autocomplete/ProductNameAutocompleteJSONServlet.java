@@ -22,8 +22,10 @@ import java.io.PrintWriter;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.logging.Level;
 
 import java.util.*;
+import com.google.appengine.api.memcache.*;
 import com.google.appengine.api.datastore.*;
 import com.google.appengine.api.datastore.Query.*;
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -41,6 +43,11 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 
   @Override
   public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    String path = request.getRequestURI();
+    if (path.startsWith("/favicon.ico")) {
+      return; // ignore the request for favicon.ico
+    }
+
    	String[] qContents = request.getParameterValues("q");
    	if(qContents == null || qContents.length == 0) {
 		PrintWriter out = response.getWriter();
@@ -48,7 +55,7 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 		return;
 	}
 	
-	String[] queryElements = qContents[0].split("\\s");
+	String[] queryElements = qContents[0].trim().split("\\s");
 	ArrayList<String> inputPrefixes = new ArrayList<String>();
 	for(String s : queryElements) {
 		if(s.length() >= minimumPrefixSize) {
@@ -58,16 +65,36 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 			inputPrefixes.add(s.toLowerCase());
 		}
 	}
-	
-	ArrayList<String> suggestions = generateListAutoCompleteSuggestions(inputPrefixes);
+	Collections.sort(inputPrefixes);
+	StringBuilder keyBuilder = new StringBuilder();
+	for(String prefix : inputPrefixes) {
+		keyBuilder.append(prefix + " ");
+	}
+	String jsonP = null;
 
-	outputJSONPFromSuggestions(suggestions, response);
+	// try to read from cache
+    MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
+    memCache.setErrorHandler(ErrorHandlers.getConsistentLogAndContinue(Level.INFO));
+    byte[] cacheValue = (byte[]) memCache.get(keyBuilder.toString().trim());
+    
+	if(cacheValue == null) {
+		ArrayList<String> suggestions = generateListAutoCompleteSuggestions(inputPrefixes);
+		jsonP = outputJSONPFromSuggestions(suggestions);
+		memCache.put(keyBuilder.toString().trim(), jsonP.getBytes());
+	} else {
+		jsonP = new String(cacheValue);
+	}
+	
+	response.setContentType("application/javascript;charset=UTF-8");           
+    response.setHeader("Cache-Control", "no-cache");
+
+	PrintWriter out = response.getWriter();
+	out.print(jsonP);
+
     //doDebugging(suggestions, response);
   }
   
-  private void outputJSONPFromSuggestions(ArrayList<String> suggestions, HttpServletResponse response) throws IOException {
-	  response.setContentType("application/javascript;charset=UTF-8");           
-      response.setHeader("Cache-Control", "no-cache");
+  private String outputJSONPFromSuggestions(ArrayList<String> suggestions) throws IOException {
       StringBuilder result = new StringBuilder(jsonCallbackFunctionName + "([");
       boolean firstElement = true;
       for(String suggestion : suggestions) {
@@ -80,8 +107,7 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 	  }
 	  result.append("])");
       
-	  PrintWriter out = response.getWriter();
-	  out.println(result.toString());
+	  return result.toString();
   }
   
   private ArrayList<String> generateListAutoCompleteSuggestions(ArrayList<String> inputPrefixes) {
