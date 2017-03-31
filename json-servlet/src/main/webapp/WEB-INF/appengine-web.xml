@@ -16,5 +16,16 @@
   <application>positive-design-162500</application>
   <version>1</version>
   <threadsafe>true</threadsafe>
+  <async-session-persistence enabled="true" />
+  <instance-class>F2</instance-class>
+  <automatic-scaling>
+    <min-idle-instances>0</min-idle-instances>
+    <!-- ‘automatic’ is the default value. -->
+    <max-idle-instances>1</max-idle-instances>
+    <!-- ‘automatic’ is the default value. -->
+    <min-pending-latency>600ms</min-pending-latency>
+    <max-pending-latency>automatic</max-pending-latency>
+    <max-concurrent-requests>60</max-concurrent-requests>
+  </automatic-scaling>
 </appengine-web-app>
 <!-- [END config] -->
