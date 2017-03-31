@@ -26,7 +26,7 @@
         <boolProp name="resetInterpreter">false</boolProp>
         <stringProp name="parameters"></stringProp>
         <stringProp name="filename"></stringProp>
-        <stringProp name="script">String[] words = new String[]{&quot;cat&quot;, &quot;dog&quot;, &quot;par&quot;, &quot;aaa&quot;, &quot;tri&quot;, &quot;clo&quot;, &quot;art&quot;, &quot;car&quot;};
+        <stringProp name="script">String[] words = new String[]{&quot;30&quot;,&quot;wa&quot;,&quot;wat&quot;,&quot;watt&quot;,&quot;pr&quot;,&quot;pra&quot;,&quot;pran&quot;,&quot;prank&quot;,&quot;pa&quot;,&quot;pac&quot;,&quot;pack&quot;,&quot;ga&quot;,&quot;gam&quot;,&quot;game&quot;,&quot;sl&quot;,&quot;sle&quot;,&quot;slee&quot;,&quot;th&quot;,&quot;thu&quot;,&quot;thum&quot;,&quot;xt&quot;,&quot;xtr&quot;,&quot;xtre&quot;,&quot;xtrem&quot;,&quot;xtreme&quot;,&quot;xx&quot;,&quot;xxl&quot;,&quot;fo&quot;,&quot;for&quot;,&quot;bs&quot;,&quot;bs4&quot;,&quot;mu&quot;,&quot;mul&quot;,&quot;mult&quot;,&quot;multi&quot;,&quot;aa&quot;,&quot;aax&quot;,&quot;aaxa&quot;,&quot;re&quot;,&quot;ref&quot;,&quot;refu&quot;,&quot;refur&quot;,&quot;refurb&quot;,&quot;refurbi&quot;,&quot;refurbis&quot;,&quot;refurbish&quot;,&quot;refurbishe&quot;,&quot;wx&quot;,&quot;wxg&quot;,&quot;wxga&quot;,&quot;p&quot;,&quot;pi&quot;,&quot;pic&quot;,&quot;pico&quot;,&quot;dl&quot;,&quot;dlp&quot;,&quot;pr&quot;,&quot;pro&quot;,&quot;proj&quot;,&quot;proje&quot;,&quot;projec&quot;,&quot;project&quot;,&quot;projecto&quot;,&quot;projector&quot;,&quot;so&quot;,&quot;sof&quot;,&quot;soft&quot;,&quot;bl&quot;,&quot;bla&quot;,&quot;blac&quot;,&quot;black&quot;};
 String separator = &quot;%20&quot;;
 	
 int minWords = 1;
@@ -67,8 +67,8 @@ vars.put(&quot;randomOption&quot;, result.toString().substring(0,result.length()
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <stringProp name="LoopController.loops">50</stringProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">200</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">2</stringProp>
+        <stringProp name="ThreadGroup.num_threads">500</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">3</stringProp>
         <longProp name="ThreadGroup.start_time">1375525852000</longProp>
         <longProp name="ThreadGroup.end_time">1375525852000</longProp>
         <boolProp name="ThreadGroup.scheduler">false</boolProp>
