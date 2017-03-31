@@ -1,0 +1,8 @@
+indexes:
+
+- kind: AutoCompletePrefixes
+  ancestor: no
+  properties:
+  - name: prefixes
+    direction: asc
+  - name: entry

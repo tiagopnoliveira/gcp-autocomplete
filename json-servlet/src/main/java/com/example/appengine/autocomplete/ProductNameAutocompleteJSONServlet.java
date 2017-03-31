@@ -128,7 +128,7 @@ public class ProductNameAutocompleteJSONServlet extends HttpServlet {
 	}
 	
 	Query query = new Query(datastoreKindName).setFilter(filter);
-//	query.addProjection(new PropertyProjection("entry", String.class));
+	query.addProjection(new PropertyProjection(datastoreProductEntryName, String.class));
 
 //	List<Entity> entities = datastore.prepare(query).asList(FetchOptions.Builder.withDefaults());
 	List<Entity> entities = datastore.prepare(query).asList(FetchOptions.Builder.withLimit(maxResults));
