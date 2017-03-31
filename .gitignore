@@ -1,5 +1,6 @@
 *.class
 *.jar
+jmeter.log
 
 dataflow-job/target
 json-servlet/target
