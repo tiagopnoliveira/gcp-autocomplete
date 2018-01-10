@@ -217,12 +217,12 @@ public class AutoComplete {
     void setMaxPrefix(Integer value);
 
     @Description("Whether output to BigQuery")
-    @Default.Boolean(true)
+    @Default.Boolean(false)
     Boolean getOutputToBigQuery();
     void setOutputToBigQuery(Boolean value);
 
     @Description("Whether output to Cloud Datastore")
-    @Default.Boolean(false)
+    @Default.Boolean(true)
     Boolean getOutputToDatastore();
     void setOutputToDatastore(Boolean value);
 
