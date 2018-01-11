@@ -23,7 +23,7 @@ input[type=text] {
 <script>
 $(document).ready(function() {
 	$( "#searchfield" ).autocomplete({
-	delay: 0,
+	delay: 200,
 	source: function( request, response ) {
 		$.ajax({
 			url: "./product",

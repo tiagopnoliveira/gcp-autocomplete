@@ -183,7 +183,7 @@ public class AutoComplete {
 			prefixes.add(makeValue(prefix).build());
 	  }
 	  Map<String, Value> properties = new HashMap<>();
-	  properties.put("entry", makeValue(c.element().getKey()).build());
+	  properties.put("entry", makeValue(c.element().getKey()).setExcludeFromIndexes(true).build());
 	  properties.put("prefixes", makeValue(prefixes).build());
 	  entityBuilder.putAllProperties(properties);
 	  c.output(entityBuilder.build());
