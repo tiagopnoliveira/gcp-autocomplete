@@ -1,3 +1,7 @@
 grep -E "(\"sku\":[0-9]+,\"name\":\")+[^\"]*" -o products.json > tmp.txt
 
 grep -E "name\":\"[^\"]+" -o tmp.txt > prod_names.txt
+
+
+# add line # to each entry
+awk '{printf("%06d;%s\n", NR, $0)}' ./resources/50k-unique-product-names.txt > ./resources/50k-unique-product-names-processed.txt

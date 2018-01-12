@@ -119,9 +119,11 @@ public class AutoComplete {
     @Override
     public void processElement(ProcessContext c) {
       String line = c.element();
+      // Split the line into id # and name based on ; divider.
+      String[] itemSplit = line.split(";");
 
-      // Split the line into words.
-      String[] words = line.split("[^0-9a-zA-Z']+");
+      // Split the item into words.
+      String[] words = itemSplit[1].split("[^0-9a-zA-Z']+");
       for (String word : words) {
 		  for (int i = minPrefix; i <= Math.min(word.length(), maxPrefix); i++) {
 			c.output(KV.of(c.element(), word.substring(0, i).toLowerCase()));
@@ -134,13 +136,15 @@ public class AutoComplete {
     @Override
     public void processElement(ProcessContext c) {
       List<TableRow> prefixes = new ArrayList<>();
+      // Split the line into id # and name based on ; divider.
+      String[] itemSplit = c.element().getKey().split(";");
       
       for (String prefix : c.element().getValue()) {
         prefixes.add(new TableRow()
             .set("prefix", prefix));
       }
       TableRow row = new TableRow()
-          .set("entry", c.element().getKey())
+          .set("entry", itemSplit[1])
           .set("prefixes", prefixes);
       c.output(row);
     }
@@ -174,8 +178,10 @@ public class AutoComplete {
 
     @Override
     public void processElement(ProcessContext c) {
-	  Entity.Builder entityBuilder = Entity.newBuilder();
-	  Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, c.element().getKey()).build();
+      String[] itemSplit = c.element().getKey().split(";");
+
+      Entity.Builder entityBuilder = Entity.newBuilder();
+	  Key key = makeKey(makeKey(kind, ancestorKey).build(), kind, itemSplit[0]).build();
 
 	  entityBuilder.setKey(key);
 	  List<Value> prefixes = new ArrayList<>();
@@ -183,7 +189,7 @@ public class AutoComplete {
 			prefixes.add(makeValue(prefix).build());
 	  }
 	  Map<String, Value> properties = new HashMap<>();
-	  properties.put("entry", makeValue(c.element().getKey()).setExcludeFromIndexes(true).build());
+	  properties.put("entry", makeValue(itemSplit[1]).setExcludeFromIndexes(true).build());
 	  properties.put("prefixes", makeValue(prefixes).build());
 	  entityBuilder.putAllProperties(properties);
 	  c.output(entityBuilder.build());
